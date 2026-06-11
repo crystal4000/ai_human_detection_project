@@ -4,22 +4,15 @@ import pandas as pd
 import pickle
 import re
 import string
-import os
 
 import nltk
-from nltk.tokenize import word_tokenize, sent_tokenize
+from nltk.tokenize import sent_tokenize
 from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
 
 import textstat
-import matplotlib.pyplot as plt
-import matplotlib
-matplotlib.use('Agg')
-import seaborn as sns
 import plotly.graph_objects as go
 import plotly.express as px
 
-from sklearn.metrics import confusion_matrix
 from tensorflow import keras
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
@@ -31,29 +24,107 @@ nltk.download('punkt_tab',   quiet=True)
 nltk.download('stopwords',   quiet=True)
 nltk.download('wordnet',     quiet=True)
 
-# ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="AI vs Human Text Detector",
     page_icon="🔍",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# ── Constants ─────────────────────────────────────────────────────────────────
-MAX_LEN   = 300
-MAX_VOCAB = 20000
-
+MAX_LEN = 300
 MODEL_DIR = "models"
 
-# ── Load models ───────────────────────────────────────────────────────────────
+# Warm editorial palette
+COLORS = {
+    "bg":     "#FAF7F2",
+    "ink":    "#1C1917",
+    "muted":  "#6B6560",
+    "border": "#DDD5C8",
+    "ai":     "#C45C26",
+    "human":  "#2D5A4A",
+    "accent": "#8B3A2A",
+}
+CHART_SCALE_LIGHT = [[0, "#F5F0E8"], [0.5, "#C45C26"], [1, "#8B3A2A"]]
+CHART_SCALE_DARK  = [[0, "#252220"], [0.5, "#E8864A"], [1, "#D4664A"]]
+GAUGE_STEPS_LIGHT = ["#EDE8DF", "#E5DDD0", "#DDD5C8"]
+GAUGE_STEPS_DARK  = ["#252220", "#2E2A27", "#3A3530"]
+
+
+def is_dark_mode():
+    try:
+        return st.context.theme.type == "dark"
+    except Exception:
+        return False
+
+
+def inject_styles():
+    if is_dark_mode():
+        bg, sidebar_top, sidebar_bottom = "#12100E", "#1A1714", "#12100E"
+        border, ink = "#3A3530", "#F5F0E8"
+    else:
+        bg, sidebar_top, sidebar_bottom = COLORS["bg"], "#F0EBE3", "#E8E0D5"
+        border, ink = COLORS["border"], COLORS["ink"]
+
+    st.markdown(f"""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=DM+Sans:wght@400;500;600&display=swap');
+        .stApp, [data-testid="stAppViewContainer"] {{
+            background-color: {bg};
+        }}
+        [data-testid="stHeader"], [data-testid="stToolbar"] {{
+            background-color: {bg} !important;
+        }}
+        h1, h2, h3, h4 {{
+            font-family: 'Fraunces', Georgia, serif !important;
+            color: {ink} !important;
+        }}
+        p, label, .stMarkdown, .stCaption {{
+            font-family: 'DM Sans', sans-serif !important;
+        }}
+        [data-testid="stSidebar"] {{
+            background: linear-gradient(180deg, {sidebar_top} 0%, {sidebar_bottom} 100%);
+            border-right: 1px solid {border};
+        }}
+        [data-testid="stSidebar"] h1 {{
+            border-bottom: 3px solid {COLORS['ai']};
+            padding-bottom: 0.4rem;
+        }}
+        div[data-testid="stButton"] > button[kind="primary"] {{
+            background: {COLORS['ai']} !important;
+            color: {COLORS['bg']} !important;
+        }}
+        div[data-testid="stButton"] > button[kind="primary"] p {{
+            color: {COLORS['bg']} !important;
+        }}
+    </style>
+    """, unsafe_allow_html=True)
+
+
+def style_chart(fig):
+    ink = "#F5F0E8" if is_dark_mode() else COLORS["ink"]
+    fig.update_layout(
+        font=dict(family="DM Sans, sans-serif", color=ink, size=13),
+        title_font_color=ink,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="#1F1C19" if is_dark_mode() else "#F5F0E8",
+        legend=dict(font=dict(color=ink)),
+    )
+    fig.update_xaxes(tickfont=dict(color=ink), title_font=dict(color=ink))
+    fig.update_yaxes(tickfont=dict(color=ink), title_font=dict(color=ink))
+    return fig
+
+
+inject_styles()
+
+
 @st.cache_resource
 def load_models():
-    with open(f"{MODEL_DIR}/svm_model.pkl",            "rb") as f: svm       = pickle.load(f)
-    with open(f"{MODEL_DIR}/decision_tree_model.pkl",  "rb") as f: dt        = pickle.load(f)
-    with open(f"{MODEL_DIR}/adaboost_model.pkl",       "rb") as f: ada       = pickle.load(f)
-    with open(f"{MODEL_DIR}/tfidf_vectorizer.pkl",     "rb") as f: tfidf     = pickle.load(f)
-    with open(f"{MODEL_DIR}/scaler.pkl",               "rb") as f: scaler    = pickle.load(f)
-    with open(f"{MODEL_DIR}/tokenizer.pkl",            "rb") as f: tokenizer = pickle.load(f)
+    with open(f"{MODEL_DIR}/svm_model.pkl",           "rb") as f: svm       = pickle.load(f)
+    with open(f"{MODEL_DIR}/decision_tree_model.pkl", "rb") as f: dt        = pickle.load(f)
+    with open(f"{MODEL_DIR}/adaboost_model.pkl",      "rb") as f: ada       = pickle.load(f)
+    with open(f"{MODEL_DIR}/tfidf_vectorizer.pkl",    "rb") as f: tfidf     = pickle.load(f)
+    with open(f"{MODEL_DIR}/scaler.pkl",              "rb") as f: scaler    = pickle.load(f)
+    with open(f"{MODEL_DIR}/tokenizer.pkl",           "rb") as f: tokenizer = pickle.load(f)
 
     fnn  = keras.models.load_model(f"{MODEL_DIR}/fnn_model.h5")
     lstm = keras.models.load_model(f"{MODEL_DIR}/lstm_model.h5")
@@ -61,11 +132,11 @@ def load_models():
 
     return svm, dt, ada, tfidf, scaler, tokenizer, fnn, lstm, cnn
 
+
 svm_model, dt_model, ada_model, tfidf, scaler, tokenizer, fnn_model, lstm_model, cnn_model = load_models()
 
-# ── Preprocessing ─────────────────────────────────────────────────────────────
-lemmatizer     = WordNetLemmatizer()
 stop_words_set = set(stopwords.words('english'))
+
 
 def clean_text(text):
     text = str(text).lower()
@@ -76,6 +147,7 @@ def clean_text(text):
     text = re.sub(r'\d+',            '', text)
     text = re.sub(r'\s+',           ' ', text).strip()
     return text
+
 
 def extract_linguistic_features(text):
     raw   = str(text)
@@ -99,13 +171,16 @@ def extract_linguistic_features(text):
         n_sents,
     ]])
 
+
 def extract_text_from_pdf(file):
     with pdfplumber.open(file) as pdf:
         return " ".join(page.extract_text() or "" for page in pdf.pages)
 
+
 def extract_text_from_docx(file):
     doc = docx.Document(file)
     return " ".join(para.text for para in doc.paragraphs)
+
 
 def predict_all(text):
     cleaned   = clean_text(text)
@@ -114,14 +189,13 @@ def predict_all(text):
 
     import scipy.sparse as sp
     combined       = sp.hstack([tfidf_vec, sp.csr_matrix(ling_feat)])
-    combined_dense = combined.toarray().astype(np.float32)  # cast to float32
+    combined_dense = combined.toarray().astype(np.float32)
 
     seq    = tokenizer.texts_to_sequences([cleaned])
     padded = pad_sequences(seq, maxlen=MAX_LEN, padding='post', truncating='post')
 
     results = {}
 
-    # FNN separately with float32 input
     fnn_prob = float(fnn_model(combined_dense, training=False).numpy()[0][0])
     results['FNN'] = {'prediction': int(fnn_prob > 0.5), 'confidence': fnn_prob}
 
@@ -142,17 +216,17 @@ def predict_all(text):
 
     return results
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
+
+# Sidebar
 with st.sidebar:
-    st.title("🔍 AI vs Human")
+    st.title("AI vs Human")
     st.markdown("---")
     st.markdown("### Model Selector")
     selected_model = st.selectbox(
         "Choose a model for primary prediction",
-        ["FNN", "SVM", "AdaBoost", "LSTM", "CNN", "Decision Tree"]
+        ["FNN", "SVM", "AdaBoost", "LSTM", "CNN", "Decision Tree"],
     )
     st.markdown("---")
-    st.markdown("### About")
     st.markdown(
         "This app detects whether text was written by a human or generated by AI. "
         "It uses six trained classifiers and compares their predictions."
@@ -161,13 +235,15 @@ with st.sidebar:
     st.markdown("**CS-5331 | Texas Tech University**")
     st.markdown("Summer I 2026")
 
-# ── Header ────────────────────────────────────────────────────────────────────
-st.title("🔍 AI vs Human Text Detector")
-st.markdown("Upload a PDF or Word document, or paste text below. The app will predict whether it was written by a human or generated by AI.")
+# Main page
+st.title("AI vs Human Text Detector")
+st.markdown(
+    "Upload a PDF or Word document, or paste text below. "
+    "The app will predict whether it was written by a human or generated by AI."
+)
 st.markdown("---")
 
-# ── Input section ─────────────────────────────────────────────────────────────
-col1, col2 = st.columns([1, 1])
+col1, col2 = st.columns(2)
 
 with col1:
     st.markdown("### Upload a Document")
@@ -177,7 +253,6 @@ with col2:
     st.markdown("### Or Paste Text")
     input_text = st.text_area("Paste your text here", height=200, placeholder="Enter text to analyze...")
 
-# Resolve input
 text_input = ""
 if uploaded_file:
     if uploaded_file.name.endswith(".pdf"):
@@ -188,7 +263,6 @@ if uploaded_file:
 elif input_text.strip():
     text_input = input_text.strip()
 
-# ── Analyze button ────────────────────────────────────────────────────────────
 analyze = st.button("Analyze Text", type="primary", use_container_width=True)
 
 if analyze and text_input:
@@ -197,26 +271,27 @@ if analyze and text_input:
 
     st.markdown("---")
 
-    # ── Primary prediction ────────────────────────────────────────────────────
     primary = results[selected_model]
     label   = "AI Generated" if primary['prediction'] == 1 else "Human Written"
     conf    = primary['confidence'] if primary['prediction'] == 1 else 1 - primary['confidence']
-    color   = "#DD8452" if primary['prediction'] == 1 else "#4C72B0"
+    color   = COLORS["ai"] if primary['prediction'] == 1 else COLORS["human"]
 
     st.markdown("## Prediction Result")
-    col1, col2, col3 = st.columns([1, 1, 1])
+    col1, col2, col3 = st.columns(3)
 
     with col1:
         st.markdown(
-            f"<div style='text-align:center; padding:20px; border-radius:10px; background-color:{color}22; border: 2px solid {color}'>"
+            f"<div style='text-align:center; padding:20px; border-radius:10px; "
+            f"background-color:{color}22; border: 2px solid {color}'>"
             f"<h2 style='color:{color}'>{label}</h2>"
             f"<p style='font-size:18px'>Confidence: <b>{conf:.1%}</b></p>"
-            f"<p style='color:gray'>Model: {selected_model}</p>"
+            f"<p style='color:{COLORS['muted']}'>Model: {selected_model}</p>"
             f"</div>",
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
 
     with col2:
+        gauge_steps = GAUGE_STEPS_DARK if is_dark_mode() else GAUGE_STEPS_LIGHT
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
             value=round(conf * 100, 1),
@@ -225,12 +300,13 @@ if analyze and text_input:
                 'axis': {'range': [0, 100]},
                 'bar':  {'color': color},
                 'steps': [
-                    {'range': [0,  50], 'color': '#f0f0f0'},
-                    {'range': [50, 75], 'color': '#ffe0cc'},
-                    {'range': [75, 100],'color': '#ffcba4'},
+                    {'range': [0,  50], 'color': gauge_steps[0]},
+                    {'range': [50, 75], 'color': gauge_steps[1]},
+                    {'range': [75, 100], 'color': gauge_steps[2]},
                 ],
-            }
+            },
         ))
+        style_chart(fig)
         fig.update_layout(height=250, margin=dict(t=40, b=0, l=20, r=20))
         st.plotly_chart(fig, use_container_width=True)
 
@@ -238,29 +314,26 @@ if analyze and text_input:
         words = len(text_input.split())
         sents = len(sent_tokenize(text_input))
         st.markdown("#### Text Statistics")
-        st.metric("Word Count",     words)
+        st.metric("Word Count", words)
         st.metric("Sentence Count", sents)
         st.metric("Avg Words/Sentence", round(words / max(sents, 1), 1))
         st.metric("Readability (Flesch)", round(textstat.flesch_reading_ease(text_input), 1))
 
     st.markdown("---")
-
-    # ── Model comparison ──────────────────────────────────────────────────────
     st.markdown("## All Model Predictions")
 
     comp_data = []
     for name, res in results.items():
         c = res['confidence'] if res['prediction'] == 1 else 1 - res['confidence']
         comp_data.append({
-            'Model'      : name,
-            'Prediction' : 'AI' if res['prediction'] == 1 else 'Human',
-            'Confidence' : f"{c:.1%}",
-            'AI Score'   : round(res['confidence'], 4),
+            'Model': name,
+            'Prediction': 'AI' if res['prediction'] == 1 else 'Human',
+            'Confidence': f"{c:.1%}",
+            'AI Score': round(res['confidence'], 4),
         })
 
     comp_df = pd.DataFrame(comp_data)
-
-    col1, col2 = st.columns([1, 1])
+    col1, col2 = st.columns(2)
 
     with col1:
         st.dataframe(comp_df, use_container_width=True, hide_index=True)
@@ -269,17 +342,16 @@ if analyze and text_input:
         fig2 = px.bar(
             comp_df, x='Model', y='AI Score',
             color='Prediction',
-            color_discrete_map={'AI': '#DD8452', 'Human': '#4C72B0'},
+            color_discrete_map={'AI': COLORS['ai'], 'Human': COLORS['human']},
             title='AI Probability Score by Model',
-            range_y=[0, 1]
+            range_y=[0, 1],
         )
-        fig2.add_hline(y=0.5, line_dash='dash', line_color='gray')
+        fig2.add_hline(y=0.5, line_dash='dash', line_color=COLORS['muted'])
+        style_chart(fig2)
         fig2.update_layout(height=300, margin=dict(t=40, b=0))
         st.plotly_chart(fig2, use_container_width=True)
 
     st.markdown("---")
-
-    # ── Linguistic features ───────────────────────────────────────────────────
     st.markdown("## Text Analysis")
 
     ling = extract_linguistic_features(text_input)[0]
@@ -287,29 +359,26 @@ if analyze and text_input:
         'Avg Word Length', 'Type Token Ratio', 'Avg Sentence Length',
         'Punctuation Density', 'Stopword Ratio', 'Flesch Reading Ease',
         'Flesch Kincaid Grade', 'Uppercase Ratio', 'Char Count',
-        'Word Count', 'Sentence Count'
+        'Word Count', 'Sentence Count',
     ]
-
     ling_df = pd.DataFrame({'Feature': feat_names, 'Value': ling})
 
-    col1, col2 = st.columns([1, 1])
+    col1, col2 = st.columns(2)
     with col1:
         st.dataframe(ling_df, use_container_width=True, hide_index=True)
-
     with col2:
         fig3 = px.bar(
             ling_df.head(8), x='Value', y='Feature',
             orientation='h',
             title='Linguistic Feature Values',
             color='Value',
-            color_continuous_scale='Blues'
+            color_continuous_scale=CHART_SCALE_DARK if is_dark_mode() else CHART_SCALE_LIGHT,
         )
+        style_chart(fig3)
         fig3.update_layout(height=350, margin=dict(t=40, b=0), showlegend=False)
         st.plotly_chart(fig3, use_container_width=True)
 
     st.markdown("---")
-
-    # ── TF-IDF top terms ──────────────────────────────────────────────────────
     st.markdown("## Feature Importance")
     st.markdown("Top TF-IDF terms from your input text that influenced the prediction.")
 
@@ -326,14 +395,13 @@ if analyze and text_input:
         title='Top 15 TF-IDF Terms in Input Text',
         labels={'x': 'TF-IDF Score', 'y': 'Term'},
         color=top_vals,
-        color_continuous_scale='Blues'
+        color_continuous_scale=CHART_SCALE_DARK if is_dark_mode() else CHART_SCALE_LIGHT,
     )
+    style_chart(fig4)
     fig4.update_layout(height=400, margin=dict(t=40, b=0), showlegend=False)
     st.plotly_chart(fig4, use_container_width=True)
 
     st.markdown("---")
-
-    # ── Download report ───────────────────────────────────────────────────────
     st.markdown("## Download Report")
 
     report_lines = [
@@ -365,13 +433,12 @@ if analyze and text_input:
         ", ".join(top_terms),
     ]
 
-    report = "\n".join(report_lines)
     st.download_button(
         label="Download Report as .txt",
-        data=report,
+        data="\n".join(report_lines),
         file_name="detection_report.txt",
         mime="text/plain",
-        use_container_width=True
+        use_container_width=True,
     )
 
 elif analyze and not text_input:
