@@ -44,73 +44,63 @@ COLORS = {
     "human":  "#2D5A4A",
     "accent": "#8B3A2A",
 }
-CHART_SCALE_LIGHT = [[0, "#F5F0E8"], [0.5, "#C45C26"], [1, "#8B3A2A"]]
-CHART_SCALE_DARK  = [[0, "#252220"], [0.5, "#E8864A"], [1, "#D4664A"]]
-GAUGE_STEPS_LIGHT = ["#EDE8DF", "#E5DDD0", "#DDD5C8"]
-GAUGE_STEPS_DARK  = ["#252220", "#2E2A27", "#3A3530"]
-
-
-def is_dark_mode():
-    try:
-        return st.context.theme.type == "dark"
-    except Exception:
-        return False
+CHART_SCALE = [[0, "#F5F0E8"], [0.5, "#C45C26"], [1, "#8B3A2A"]]
+GAUGE_STEPS = ["#EDE8DF", "#E5DDD0", "#DDD5C8"]
 
 
 def inject_styles():
-    if is_dark_mode():
-        bg, sidebar_top, sidebar_bottom = "#12100E", "#1A1714", "#12100E"
-        border, ink = "#3A3530", "#F5F0E8"
-    else:
-        bg, sidebar_top, sidebar_bottom = COLORS["bg"], "#F0EBE3", "#E8E0D5"
-        border, ink = COLORS["border"], COLORS["ink"]
-
+    c = COLORS
     st.markdown(f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=DM+Sans:wght@400;500;600&display=swap');
-        .stApp, [data-testid="stAppViewContainer"] {{
-            background-color: {bg};
+        .stApp, [data-testid="stAppViewContainer"], .main .block-container {{
+            background-color: {c['bg']} !important;
+            color: {c['ink']} !important;
         }}
-        [data-testid="stHeader"], [data-testid="stToolbar"] {{
-            background-color: {bg} !important;
+        [data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"] {{
+            background-color: {c['bg']} !important;
         }}
         h1, h2, h3, h4 {{
             font-family: 'Fraunces', Georgia, serif !important;
-            color: {ink} !important;
+            color: {c['ink']} !important;
         }}
         p, label, .stMarkdown, .stCaption {{
             font-family: 'DM Sans', sans-serif !important;
+            color: {c['ink']} !important;
         }}
         [data-testid="stSidebar"] {{
-            background: linear-gradient(180deg, {sidebar_top} 0%, {sidebar_bottom} 100%);
-            border-right: 1px solid {border};
+            background: linear-gradient(180deg, #F0EBE3 0%, #E8E0D5 100%) !important;
+            border-right: 1px solid {c['border']};
+        }}
+        [data-testid="stSidebar"] h1, [data-testid="stSidebar"] p,
+        [data-testid="stSidebar"] label {{
+            color: {c['ink']} !important;
         }}
         [data-testid="stSidebar"] h1 {{
-            border-bottom: 3px solid {COLORS['ai']};
+            border-bottom: 3px solid {c['ai']};
             padding-bottom: 0.4rem;
         }}
         div[data-testid="stButton"] > button[kind="primary"] {{
-            background: {COLORS['ai']} !important;
-            color: {COLORS['bg']} !important;
+            background: {c['ai']} !important;
+            color: {c['bg']} !important;
         }}
         div[data-testid="stButton"] > button[kind="primary"] p {{
-            color: {COLORS['bg']} !important;
+            color: {c['bg']} !important;
         }}
     </style>
     """, unsafe_allow_html=True)
 
 
 def style_chart(fig):
-    ink = "#F5F0E8" if is_dark_mode() else COLORS["ink"]
     fig.update_layout(
-        font=dict(family="DM Sans, sans-serif", color=ink, size=13),
-        title_font_color=ink,
+        font=dict(family="DM Sans, sans-serif", color=COLORS["ink"], size=13),
+        title_font_color=COLORS["ink"],
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="#1F1C19" if is_dark_mode() else "#F5F0E8",
-        legend=dict(font=dict(color=ink)),
+        plot_bgcolor="#F5F0E8",
+        legend=dict(font=dict(color=COLORS["ink"])),
     )
-    fig.update_xaxes(tickfont=dict(color=ink), title_font=dict(color=ink))
-    fig.update_yaxes(tickfont=dict(color=ink), title_font=dict(color=ink))
+    fig.update_xaxes(tickfont=dict(color=COLORS["ink"]), title_font=dict(color=COLORS["ink"]))
+    fig.update_yaxes(tickfont=dict(color=COLORS["ink"]), title_font=dict(color=COLORS["ink"]))
     return fig
 
 
@@ -291,7 +281,6 @@ if analyze and text_input:
         )
 
     with col2:
-        gauge_steps = GAUGE_STEPS_DARK if is_dark_mode() else GAUGE_STEPS_LIGHT
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
             value=round(conf * 100, 1),
@@ -300,9 +289,9 @@ if analyze and text_input:
                 'axis': {'range': [0, 100]},
                 'bar':  {'color': color},
                 'steps': [
-                    {'range': [0,  50], 'color': gauge_steps[0]},
-                    {'range': [50, 75], 'color': gauge_steps[1]},
-                    {'range': [75, 100], 'color': gauge_steps[2]},
+                    {'range': [0,  50], 'color': GAUGE_STEPS[0]},
+                    {'range': [50, 75], 'color': GAUGE_STEPS[1]},
+                    {'range': [75, 100], 'color': GAUGE_STEPS[2]},
                 ],
             },
         ))
@@ -372,7 +361,7 @@ if analyze and text_input:
             orientation='h',
             title='Linguistic Feature Values',
             color='Value',
-            color_continuous_scale=CHART_SCALE_DARK if is_dark_mode() else CHART_SCALE_LIGHT,
+            color_continuous_scale=CHART_SCALE,
         )
         style_chart(fig3)
         fig3.update_layout(height=350, margin=dict(t=40, b=0), showlegend=False)
@@ -395,7 +384,7 @@ if analyze and text_input:
         title='Top 15 TF-IDF Terms in Input Text',
         labels={'x': 'TF-IDF Score', 'y': 'Term'},
         color=top_vals,
-        color_continuous_scale=CHART_SCALE_DARK if is_dark_mode() else CHART_SCALE_LIGHT,
+        color_continuous_scale=CHART_SCALE,
     )
     style_chart(fig4)
     fig4.update_layout(height=400, margin=dict(t=40, b=0), showlegend=False)
