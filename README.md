@@ -19,6 +19,10 @@ Best performing model: FNN at 99.33% test accuracy.
 
 The trained model files are not included in this repository due to file size. You have two options:
 
+## Kaggle Notebook
+
+The models are included in this repository due to file size. But you have two options to access the models and notebook
+
 **Option 1 — Run the notebook**
 Open `notebooks/ai-human-detection-project1.ipynb` in Kaggle or Jupyter, run all cells, and the models will be saved to the `models/` directory automatically.
 
