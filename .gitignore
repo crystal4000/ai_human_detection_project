@@ -5,4 +5,5 @@ __pycache__/
 models/*.h5
 models/*.pkl
 glove/
-*.zipnotebooks/
+*.zip
+
