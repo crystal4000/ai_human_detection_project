@@ -17,6 +17,14 @@ Deep Learning: Feedforward Neural Network, LSTM, CNN for Text
 
 Best performing model: FNN at 99.33% test accuracy.
 
+The trained model files are not included in this repository due to file size. You have two options:
+
+**Option 1 — Run the notebook**
+Open `notebooks/ai-human-detection-project1.ipynb` in Kaggle or Jupyter, run all cells, and the models will be saved to the `models/` directory automatically.
+
+**Option 2 — Download from Kaggle**
+The trained models are available as output files from the [Kaggle notebook](https://www.kaggle.com/code/amandafredrick/ai-human-detection-project1). Download them and place them in the `models/` directory before running the app.
+
 ## Project Structure
 
 ```
@@ -46,7 +54,7 @@ ai_human_detection_project/
 **1. Clone the repository**
 
 ```bash
-git clone https://github.com/yourusername/ai_human_detection_project.git
+git clone https://github.com/crystal4000/ai_human_detection_project.git
 cd ai_human_detection_project
 ```
 
