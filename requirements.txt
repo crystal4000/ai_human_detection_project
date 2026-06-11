@@ -1,0 +1,16 @@
+streamlit
+scikit-learn
+tensorflow
+keras
+nltk
+gensim
+textstat
+pdfplumber
+python-docx
+matplotlib
+seaborn
+plotly
+pandas
+numpy
+openpyxl
+scipy
