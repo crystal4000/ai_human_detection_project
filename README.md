@@ -3,7 +3,8 @@
 CS-5331: Introduction to Large Language Models
 Texas Tech University | Summer I 2026
 
-GitHub Link : [ai-human-detection-project1](https://github.com/crystal4000/ai_human_detection_project.git)
+GitHub [Link](https://github.com/crystal4000/ai_human_detection_project.git)
+StreamLit Web App [Link](https://aihumandetectionproject.streamlit.app/)
 
 ## Project Overview
 
