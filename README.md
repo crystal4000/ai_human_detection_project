@@ -140,6 +140,20 @@ The independent LLM judge (Qwen2.5-0.5B) occasionally disagrees with the trained
 
 The LLM components run on CPU by default and add a few seconds of latency per analysis compared to the classifier-only pipeline.
 
+## Challenges and How They Were Solved
+
+**Python and dependency version mismatches.** Hugging Face Spaces defaulted to a newer Python version than TensorFlow supports, which caused the build to fail outright. Pinning Python to 3.11 in the Dockerfile fixed this. A similar issue showed up with `transformers` and `torch`, an unpinned install pulled incompatible versions and broke the package's internal imports. Pinning specific known-compatible versions (`torch==2.5.1`, `transformers==4.46.3`, `accelerate==1.1.1`) resolved it.
+
+**Hugging Face Spaces uses a Docker-based Streamlit template, not a standalone SDK.** This meant the app file had to live at `src/streamlit_app.py` rather than a root-level `app.py`, and the Dockerfile had to explicitly copy the `models/` and `.streamlit/` directories into the image, since anything not listed in a `COPY` instruction simply doesn't exist in the container at runtime.
+
+**File upload returning a 403 error on Spaces.** Streamlit's default XSRF and CORS protections conflicted with HF's reverse proxy setup. Disabling `enableXsrfProtection` and `enableCORS` in `.streamlit/config.toml` fixed the upload path without compromising the rest of the app.
+
+**Git LFS rejecting large files.** Both the training dataset and the original Excel file exceeded GitHub and Hugging Face's file size limits for regular git tracking. The first few attempts at adding LFS tracking failed because the large file had already been committed in an earlier, non-LFS commit still present in the branch history, so git kept trying to push the old blob alongside the new one. The fix was `git reset --soft origin/main` to roll the branch pointer back without losing local changes, then re-adding `.gitattributes` LFS rules before staging the large files again in a single clean commit.
+
+**The independent LLM judge initially gave inconsistent or off-topic answers.** With sampling enabled (`do_sample=True`), the smaller 0.5B model sometimes failed to commit to a single verdict or generated reasoning unrelated to the actual input text. Switching to greedy decoding (`do_sample=False`) made the output format and reasoning far more reliable.
+
+**Small LLMs sometimes disagree with the trained classifiers.** Rather than treating this as a bug, the app surfaces these disagreements directly, since they highlight a real and interesting gap between statistical pattern-based classification and LLM judgment on the same input.
+
 ## Deployment
 
 This project is deployed in two places:
